@@ -30,7 +30,7 @@ export function replicateSupabase(options) {
   // set defaults
   options.waitForLeadership = typeof options.waitForLeadership === 'undefined' ? true : options.waitForLeadership;
   options.live = typeof options.live === 'undefined' ? true : options.live;
-  options.schemaName = options.schemaName ? options.schemaName : 'public';
+  var schemaName = typeof options.schemaName === 'undefined' ? 'public' : options.schemaName;
   var modifiedField = options.modifiedField ? options.modifiedField : DEFAULT_MODIFIED_FIELD;
   var deletedField = options.deletedField ? options.deletedField : DEFAULT_DELETED_FIELD;
   var pullStream$ = new Subject();
@@ -56,7 +56,7 @@ export function replicateSupabase(options) {
     var {
       data,
       error
-    } = await options.client.schema(options.schemaName).from(options.tableName).select().eq(primaryPath, id).limit(1);
+    } = await options.client.schema(schemaName).from(options.tableName).select().eq(primaryPath, id).limit(1);
     if (error) throw error;
     if (data.length != 1) throw new Error('doc not found ' + id);
     return rowToDoc(data[0]);
@@ -64,7 +64,7 @@ export function replicateSupabase(options) {
   if (options.pull) {
     replicationPrimitivesPull = {
       async handler(lastPulledCheckpoint, batchSize) {
-        var query = options.client.schema(options.schemaName).from(options.tableName).select('*');
+        var query = options.client.schema(schemaName).from(options.tableName).select('*');
         if (options.pull?.queryBuilder) {
           var maybeNewQuery = options.pull.queryBuilder({
             query,
@@ -126,7 +126,7 @@ export function replicateSupabase(options) {
         var id = doc[primaryPath];
         var {
           error
-        } = await options.client.schema(options.schemaName).from(options.tableName).insert(doc);
+        } = await options.client.schema(schemaName).from(options.tableName).insert(doc);
         if (!error) {
           return;
         } else if (error.code == POSTGRES_INSERT_CONFLICT_CODE) {
@@ -150,7 +150,7 @@ export function replicateSupabase(options) {
 
         // modified field will be set server-side
         delete toRow[modifiedField];
-        var query = options.client.schema(options.schemaName).from(options.tableName).update(toRow);
+        var query = options.client.schema(schemaName).from(options.tableName).update(toRow);
         query = addDocEqualityToQuery(collection.schema.jsonSchema, deletedField, modifiedField, assumedMasterState, query);
         var {
           data,
@@ -191,7 +191,7 @@ export function replicateSupabase(options) {
     replicationState.start = () => {
       var sub = options.client.channel('realtime:' + options.tableName).on('postgres_changes', {
         event: '*',
-        schema: options.schemaName,
+        schema: schemaName,
         table: options.tableName
       }, payload => {
         /**
